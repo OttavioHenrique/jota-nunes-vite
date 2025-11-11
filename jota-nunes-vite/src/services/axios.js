@@ -2,7 +2,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "https://obraspecapi.onrender.com",
-  timeout: 100000,
+  timeout: 50000,
 });
 
 api.interceptors.request.use(

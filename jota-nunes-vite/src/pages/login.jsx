@@ -35,7 +35,6 @@ export default function LoginPage() {
 
   return (
     <>
-      {showModal && <LoadingModal message="Entrando..." />}
       <div className="flex min-h-screen items-center justify-center bg-gray-100 px-4">
         <div className="flex flex-col lg:flex-row w-full lg:w-[85%] h-auto lg:h-screen bg-white shadow-lg overflow-hidden rounded-2xl">
           {/* Área de Login */}

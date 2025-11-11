@@ -23,7 +23,7 @@ export default function NovoDocumentoModal({ isOpen, onClose }) {
         <button
           onClick={() => {
             onClose();
-            navigate("");
+            navigate("/criacao");
           }}
           className="flex items-center justify-center gap-2 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-700 hover:to-red-600 text-white px-5 py-3 rounded-2xl font-semibold shadow-md transition-all duration-300"
         >

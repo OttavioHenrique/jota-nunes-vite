@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LoginPage from "../src/pages/login";
 import Home from "./pages/home";
 import ModeloPadrao from "./pages/modeloPadrao";
+import NovaObra from "./pages/NovaObra";
+import SelecionarAreas from "./pages/areas";
+import ElementsMaterialsPage from "./pages/elementsMaterials";
 
 export default function App() {
   return (
@@ -10,6 +13,9 @@ export default function App() {
         <Route path="/" element={<LoginPage />} />
         <Route path="/home" element={<Home />} />
         <Route path="/modeloPadrao" element={<ModeloPadrao />} />
+        <Route path="/areas" element={<SelecionarAreas />} />
+        <Route path="/criacao" element={<NovaObra />} />
+        <Route path="/ElementosMaterials" element={<ElementsMaterialsPage />} />
       </Routes>
     </BrowserRouter>
   );
