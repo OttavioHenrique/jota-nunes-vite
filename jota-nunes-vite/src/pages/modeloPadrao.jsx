@@ -58,7 +58,7 @@ export default function ModeloPadrao() {
 
           {/* Botão criar modelo */}
           <button
-            onClick={() => navigate("/engenheiro/stepTwo")}
+            onClick={() => navigate("/criacao")}
             className="bg-red-600 text-white px-6 py-3 rounded-xl hover:bg-red-700 transition"
           >
             Criar modelo do zero

@@ -1,7 +1,7 @@
 // src/pages/SelecionarElementos.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import api from "../services/axios";
 
 export default function SelecionarElementos() {
@@ -14,6 +14,18 @@ export default function SelecionarElementos() {
 
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // === Modal state para criar novo elemento ===
+  const [modalOpen, setModalOpen] = useState(false);
+  const [elementTypes, setElementTypes] = useState([]);
+  const [allMaterials, setAllMaterials] = useState([]);
+  const [selectedTypeId, setSelectedTypeId] = useState(null);
+  const [newTypeName, setNewTypeName] = useState("");
+  const [selectedMaterialsForModal, setSelectedMaterialsForModal] = useState(
+    []
+  );
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState("");
 
   function updateNovaObra(data) {
     const current = JSON.parse(localStorage.getItem("novaObra")) || {};
@@ -100,6 +112,31 @@ export default function SelecionarElementos() {
     load();
   }, []);
 
+  // carregar tipos de elementos e materiais para o modal
+  useEffect(() => {
+    async function loadAux() {
+      try {
+        // fetch element types
+        const typesRes = await api.get("/elements/types/");
+        const typesPayload = typesRes?.data?.data ?? typesRes?.data ?? [];
+        const typesArr = Array.isArray(typesPayload) ? typesPayload : [];
+        setElementTypes(typesArr);
+      } catch (err) {
+        console.warn("Erro ao buscar tipos de elementos:", err);
+      }
+      try {
+        // fetch materials
+        const matsRes = await api.get("/materials/");
+        const matsPayload = matsRes?.data?.data ?? matsRes?.data ?? [];
+        const matsArr = Array.isArray(matsPayload) ? matsPayload : [];
+        setAllMaterials(matsArr);
+      } catch (err) {
+        console.warn("Erro ao buscar materiais:", err);
+      }
+    }
+    loadAux();
+  }, []);
+
   function toggleElement(refId, areaId, elementId) {
     const areaKey = `${refId}-${areaId}`;
     setElementsByArea((prev) => {
@@ -125,6 +162,115 @@ export default function SelecionarElementos() {
   function matchesSearch(text) {
     if (!search) return true;
     return text.toLowerCase().includes(search.toLowerCase());
+  }
+
+  // toggle material para modal
+  function toggleModalMaterial(materialId) {
+    setSelectedMaterialsForModal((prev) =>
+      prev.includes(materialId)
+        ? prev.filter((x) => x !== materialId)
+        : [...prev, materialId]
+    );
+  }
+
+  // criar novo elemento
+  async function createElement() {
+    setModalError("");
+    let typeId = selectedTypeId;
+
+    // se não selecionou tipo, tenta usar nome digitado para buscar correspondência ou criar novo
+    if (!typeId && newTypeName && newTypeName.trim()) {
+      const match = elementTypes.find(
+        (t) => t.name?.toLowerCase() === newTypeName.trim().toLowerCase()
+      );
+      if (match) {
+        typeId = match.id;
+      } else {
+        // será criado novo tipo
+      }
+    }
+
+    // validar que temos typeId ou vamos criar um novo tipo
+    if (!typeId && (!newTypeName || !newTypeName.trim())) {
+      setModalError("Selecione um tipo de elemento ou informe um novo tipo.");
+      return;
+    }
+
+    setModalLoading(true);
+
+    const extractMessage = (err) => {
+      const resp = err?.response;
+      if (!resp) return err?.message || "Erro desconhecido";
+      const data = resp.data;
+      if (!data) return `Erro ${resp.status || ""}`;
+      if (typeof data === "string")
+        return resp.status === 404
+          ? "Endpoint não encontrado (404)."
+          : `Erro ${resp.status}`;
+      if (data?.detail) return data.detail;
+      if (data?.message) return data.message;
+      try {
+        return Object.entries(data)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join(" • ");
+      } catch {
+        return JSON.stringify(data);
+      }
+    };
+
+    try {
+      // 1) criar ElementType se necessário (enviar como array, many=True)
+      if (!typeId && newTypeName && newTypeName.trim()) {
+        const etRes = await api.post("/elements/types/", [
+          { name: newTypeName.trim() },
+        ]);
+        const etPayload = etRes?.data?.data ?? etRes?.data ?? etRes;
+        typeId =
+          (Array.isArray(etPayload) ? etPayload[0]?.id : etPayload?.id) ?? null;
+        if (!typeId && typeof etPayload === "object") {
+          typeId = etPayload?.id ?? etPayload?.pk ?? null;
+        }
+        if (!typeId)
+          throw new Error(
+            "Não foi possível obter element_type_id a partir da resposta."
+          );
+      }
+
+      // 2) criar Element (enviar como array, many=True)
+      const payload = [
+        {
+          element_type_id: typeId,
+          material_ids: Array.isArray(selectedMaterialsForModal)
+            ? selectedMaterialsForModal
+            : [],
+        },
+      ];
+
+      await api.post("/elements/", payload);
+      console.log("Elemento criado com sucesso");
+
+      // 3) recarregar elementos
+      try {
+        const elemRes = await api.get("/elements/");
+        const elemPayload = elemRes?.data?.data ?? elemRes?.data ?? [];
+        const elemsArr = Array.isArray(elemPayload) ? elemPayload : [];
+        setAllElements(elemsArr);
+      } catch (err) {
+        console.warn("Erro ao recarregar elementos:", err);
+      }
+
+      // fechar modal e resetar
+      setModalOpen(false);
+      setSelectedTypeId(null);
+      setNewTypeName("");
+      setSelectedMaterialsForModal([]);
+      setModalError("");
+    } catch (err) {
+      console.error("Erro ao criar elemento:", err);
+      setModalError(extractMessage(err));
+    } finally {
+      setModalLoading(false);
+    }
   }
 
   const stored = JSON.parse(localStorage.getItem("novaObra")) || {};
@@ -153,13 +299,22 @@ export default function SelecionarElementos() {
             </p>
           </div>
 
-          <input
-            type="text"
-            placeholder="Buscar elemento..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="p-3 rounded-xl border border-gray-300 focus:border-red-600 focus:outline-none"
-          />
+          <div className="flex gap-3 items-center">
+            <input
+              type="text"
+              placeholder="Buscar elemento..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 p-3 rounded-xl border border-gray-300 focus:border-red-600 focus:outline-none"
+            />
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-3 rounded-2xl shadow-md hover:bg-green-700 transition"
+            >
+              <Plus className="w-5 h-5" />
+              Novo
+            </button>
+          </div>
         </section>
 
         {loading ? (
@@ -207,9 +362,14 @@ export default function SelecionarElementos() {
 
                           <div className="grid md:grid-cols-2 gap-4">
                             {allElements
-                              .filter((el) =>
-                                matchesSearch(el?.name ?? `EL ${el.id}`)
-                              )
+                              .filter((el) => {
+                                // Buscar pelo nome do elemento OU pelo element_type
+                                const name =
+                                  el?.element_type?.name ??
+                                  el?.name ??
+                                  `EL ${el.id}`;
+                                return matchesSearch(name);
+                              })
                               .map((el) => {
                                 const isSel = selectedElems.includes(el.id);
                                 return (
@@ -271,6 +431,106 @@ export default function SelecionarElementos() {
           </>
         )}
       </main>
+
+      {/* Modal: Criar Elemento */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl w-full max-w-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Criar Elemento</h3>
+              <button
+                onClick={() => {
+                  setModalOpen(false);
+                  setModalError("");
+                }}
+                className="text-gray-500"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <label className="text-sm font-medium">Tipo de elemento</label>
+              <select
+                value={selectedTypeId ?? ""}
+                onChange={(e) =>
+                  setSelectedTypeId(
+                    e.target.value ? Number(e.target.value) : null
+                  )
+                }
+                className="p-3 border rounded-xl"
+              >
+                <option value="">-- selecione --</option>
+                {elementTypes.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+
+              <div className="text-center text-sm text-gray-500">ou</div>
+
+              <label className="text-sm font-medium">Criar novo tipo</label>
+              <input
+                type="text"
+                placeholder="Nome do novo tipo de elemento"
+                value={newTypeName}
+                onChange={(e) => setNewTypeName(e.target.value)}
+                className="p-3 border rounded-xl"
+              />
+
+              <label className="text-sm font-medium">
+                Associar materiais (opcional)
+              </label>
+              <div className="grid md:grid-cols-2 gap-2 max-h-40 overflow-auto p-2 border rounded">
+                {allMaterials.map((m) => {
+                  const sel = selectedMaterialsForModal.includes(m.id);
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => toggleModalMaterial(m.id)}
+                      className={`text-left p-2 rounded ${
+                        sel
+                          ? "bg-red-100 border border-red-300"
+                          : "hover:bg-gray-100"
+                      }`}
+                    >
+                      <div className="text-sm font-medium">
+                        {m.name || `Material ${m.id}`}
+                      </div>
+                      <div className="text-xs text-gray-500">ID {m.id}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {modalError && (
+                <div className="text-sm text-red-600">{modalError}</div>
+              )}
+
+              <div className="flex justify-end gap-3 mt-3">
+                <button
+                  onClick={() => {
+                    setModalOpen(false);
+                    setModalError("");
+                  }}
+                  className="px-4 py-2 rounded-xl bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={createElement}
+                  disabled={modalLoading}
+                  className="px-4 py-2 rounded-xl bg-red-600 text-white"
+                >
+                  {modalLoading ? "Criando..." : "Criar Elemento"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

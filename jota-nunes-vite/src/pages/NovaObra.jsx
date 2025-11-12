@@ -6,15 +6,26 @@ import api from "../services/axios";
 export default function NovaObra() {
   const navigate = useNavigate();
   const [referentials, setReferentials] = useState([]);
+  const [observations, setObservations] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedReferentials, setSelectedReferentials] = useState([]);
+  const [selectedObservations, setSelectedObservations] = useState([]);
 
   // ▸ states locais da obra
   const [projectName, setProjectName] = useState("");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
-  const [observations, setObservations] = useState("");
   const [aprovationObservations, setAprovationObservations] = useState("");
+
+  // === Modal state & helpers ===
+  const [modalOpen, setModalOpen] = useState(false);
+  const [observationsModalOpen, setObservationsModalOpen] = useState(false);
+  const [availableAreas, setAvailableAreas] = useState([]);
+  const [newRefName, setNewRefName] = useState("");
+  const [newObservationDesc, setNewObservationDesc] = useState("");
+  const [selectedAreasForModal, setSelectedAreasForModal] = useState([]);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState("");
 
   function updateNovaObra(data) {
     const current = JSON.parse(localStorage.getItem("novaObra")) || {};
@@ -26,12 +37,9 @@ export default function NovaObra() {
     async function fetchReferentials() {
       try {
         const res = await api.get("/referentials/");
-
         console.log("✅ RES.DATA:", res.data);
         const list = res?.data?.data ?? [];
-
         console.log("✅ LIST:", list);
-
         setReferentials(list);
       } catch (err) {
         console.error("❌ Erro ao buscar referentials:", err);
@@ -39,6 +47,42 @@ export default function NovaObra() {
     }
 
     fetchReferentials();
+  }, []);
+
+  useEffect(() => {
+    async function fetchObservations() {
+      try {
+        const res = await api.get("/observations/");
+        console.log("✅ Observations RES.DATA:", res.data);
+        const list = res?.data?.data ?? [];
+        console.log("✅ Observations LIST:", list);
+        setObservations(list);
+      } catch (err) {
+        console.error("❌ Erro ao buscar observations:", err);
+      }
+    }
+
+    fetchObservations();
+  }, []);
+
+  // NEW: carregar áreas para o modal
+  useEffect(() => {
+    async function loadAux() {
+      try {
+        try {
+          const areasRes = await api.get("/areas/");
+          const areasPayload = areasRes?.data?.data ?? areasRes?.data ?? [];
+          const areasArr = Array.isArray(areasPayload) ? areasPayload : [];
+          setAvailableAreas(areasArr);
+        } catch (e) {
+          console.warn("Erro ao buscar áreas para modal:", e);
+        }
+      } catch (err) {
+        console.error("Erro loadAux:", err);
+      }
+    }
+
+    loadAux();
   }, []);
 
   const filtered = referentials.filter(
@@ -55,17 +99,167 @@ export default function NovaObra() {
     );
   }
 
+  function toggleObservationSelect(id) {
+    setSelectedObservations((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
   function handleNext() {
     updateNovaObra({
       project_name: projectName,
       location,
       description,
-      observations,
       aprovation_observations: aprovationObservations,
       referentials: selectedReferentials,
+      observations_ids: selectedObservations,
     });
 
     navigate("/areas");
+  }
+
+  // create referential: criar ReferentialName via /referentials/name/ (espera um objeto) e depois criar /referentials/
+  async function createReferential() {
+    setModalError("");
+
+    if (!newRefName || !newRefName.trim()) {
+      setModalError("Informe o nome do referencial.");
+      return;
+    }
+
+    setModalLoading(true);
+
+    const extractMessage = (err) => {
+      const resp = err?.response;
+      if (!resp) return err?.message || "Erro desconhecido";
+      const data = resp.data;
+      if (!data) return `Erro ${resp.status || ""}`;
+      if (typeof data === "string") {
+        return resp.status === 404
+          ? "Endpoint não encontrado (404). Verifique a API."
+          : `Erro ${resp.status}`;
+      }
+      if (data?.detail) return data.detail;
+      if (data?.message) return data.message;
+      try {
+        return Object.entries(data)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join(" • ");
+      } catch {
+        return JSON.stringify(data);
+      }
+    };
+
+    try {
+      // 1) criar ReferentialName (objeto, não lista)
+      const rnRes = await api.post("/referentials/name/", {
+        name: newRefName.trim(),
+      });
+      // resposta pode vir em rnRes.data.data ou rnRes.data
+      const rnPayload = rnRes?.data?.data ?? rnRes?.data ?? rnRes;
+      // rnPayload pode ser objeto ou array/primitive — extrair id de forma robusta
+      let refNameId =
+        (Array.isArray(rnPayload) ? rnPayload[0]?.id : rnPayload?.id) ?? null;
+      if (!refNameId && typeof rnPayload === "object") {
+        // tentar propriedades alternativas
+        refNameId = rnPayload?.id ?? rnPayload?.pk ?? null;
+      }
+      if (!refNameId) {
+        throw new Error(
+          "Não foi possível obter referential_name_id a partir da resposta."
+        );
+      }
+
+      // 2) criar Referential (objeto, não lista)
+      const payload = {
+        referential_name_id: refNameId,
+        areas_ids: Array.isArray(selectedAreasForModal)
+          ? selectedAreasForModal
+          : [],
+        comment: "",
+      };
+
+      const res = await api.post("/referentials/", payload);
+      console.log("Referential criado:", res.data);
+
+      // 3) atualizar lista local
+      try {
+        const listRes = await api.get("/referentials/");
+        const list = listRes?.data?.data ?? listRes?.data ?? [];
+        setReferentials(list);
+      } catch (err) {
+        console.warn("Erro ao recarregar referentials:", err);
+      }
+
+      // fechar modal e resetar
+      setModalOpen(false);
+      setNewRefName("");
+      setSelectedAreasForModal([]);
+      setModalError("");
+    } catch (err) {
+      console.error("Erro ao criar referential:", err);
+      setModalError(extractMessage(err));
+    } finally {
+      setModalLoading(false);
+    }
+  }
+
+  async function createObservation() {
+    setModalError("");
+
+    if (!newObservationDesc || !newObservationDesc.trim()) {
+      setModalError("Informe a descrição da observação.");
+      return;
+    }
+
+    setModalLoading(true);
+
+    const extractMessage = (err) => {
+      const resp = err?.response;
+      if (!resp) return err?.message || "Erro desconhecido";
+      const data = resp.data;
+      if (!data) return `Erro ${resp.status || ""}`;
+      if (typeof data === "string") {
+        return resp.status === 404
+          ? "Endpoint não encontrado (404). Verifique a API."
+          : `Erro ${resp.status}`;
+      }
+      if (data?.detail) return data.detail;
+      if (data?.message) return data.message;
+      try {
+        return Object.entries(data)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join(" • ");
+      } catch {
+        return JSON.stringify(data);
+      }
+    };
+
+    try {
+      const res = await api.post("/observations/", {
+        description: newObservationDesc.trim(),
+      });
+      console.log("Observation criada:", res.data);
+
+      // recarregar lista local
+      try {
+        const listRes = await api.get("/observations/");
+        const list = listRes?.data?.data ?? listRes?.data ?? [];
+        setObservations(list);
+      } catch (err) {
+        console.warn("Erro ao recarregar observations:", err);
+      }
+
+      // fechar modal e resetar
+      setObservationsModalOpen(false);
+      setNewObservationDesc("");
+      setModalError("");
+    } catch (err) {
+      console.error("Erro ao criar observation:", err);
+      setModalError(extractMessage(err));
+    } finally {
+      setModalLoading(false);
+    }
   }
 
   return (
@@ -116,7 +310,7 @@ export default function NovaObra() {
             <h2 className="font-bold text-xl">Referenciais</h2>
 
             <button
-              onClick={() => navigate("/referenciais/new")}
+              onClick={() => setModalOpen(true)}
               className="flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-3 rounded-2xl shadow-md hover:bg-green-700 transition"
             >
               <Plus className="w-5 h-5" />
@@ -159,23 +353,41 @@ export default function NovaObra() {
           )}
         </section>
 
-        {/* Observações */}
+        {/* OBSERVATIONS */}
         <section className="bg-white p-6 rounded-2xl shadow-md flex flex-col gap-4">
-          <h2 className="font-bold text-xl">Observações</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-xl">Observações</h2>
 
-          <textarea
-            placeholder="Observações gerais"
-            value={observations}
-            onChange={(e) => setObservations(e.target.value)}
-            className="w-full p-3 rounded-xl border border-gray-300 focus:border-red-600 focus:outline-none min-h-24"
-          />
+            <button
+              onClick={() => setObservationsModalOpen(true)}
+              className="flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-3 rounded-2xl shadow-md hover:bg-green-700 transition"
+            >
+              <Plus className="w-5 h-5" />
+              Nova
+            </button>
+          </div>
 
-          <textarea
-            placeholder="Observações de aprovação"
-            value={aprovationObservations}
-            onChange={(e) => setAprovationObservations(e.target.value)}
-            className="w-full p-3 rounded-xl border border-gray-300 focus:border-red-600 focus:outline-none min-h-24"
-          />
+          {observations.length > 0 ? (
+            <div className="grid md:grid-cols-2 gap-4 mt-4">
+              {observations.map((obs) => (
+                <div
+                  key={obs.id}
+                  onClick={() => toggleObservationSelect(obs.id)}
+                  className={`cursor-pointer bg-white p-5 rounded-2xl border shadow transition flex flex-col gap-2 ${
+                    selectedObservations.includes(obs.id)
+                      ? "border-red-600 ring-2 ring-red-400"
+                      : "border-gray-200"
+                  }`}
+                >
+                  <p className="text-sm text-gray-700">
+                    {obs?.description ?? "Sem descrição"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-500 mt-4">Nenhuma observação encontrada.</p>
+          )}
         </section>
 
         <button
@@ -184,6 +396,149 @@ export default function NovaObra() {
         >
           Próximo
         </button>
+
+        {/* Modal: Criar Referencial */}
+        {modalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-xl w-full max-w-2xl p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Criar Referencial</h3>
+                <button
+                  onClick={() => {
+                    setModalOpen(false);
+                    setModalError("");
+                  }}
+                  className="text-gray-500"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <label className="text-sm font-medium">
+                  Nome do referencial
+                </label>
+                <input
+                  type="text"
+                  placeholder="Digite o nome do novo referencial"
+                  value={newRefName}
+                  onChange={(e) => setNewRefName(e.target.value)}
+                  className="p-3 border rounded-xl"
+                />
+
+                <label className="text-sm font-medium">
+                  Associar áreas (opcional)
+                </label>
+                <div className="grid md:grid-cols-2 gap-2 max-h-40 overflow-auto p-2 border rounded">
+                  {availableAreas.map((a) => {
+                    const sel = selectedAreasForModal.includes(a.id);
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() =>
+                          setSelectedAreasForModal((prev) =>
+                            prev.includes(a.id)
+                              ? prev.filter((x) => x !== a.id)
+                              : [...prev, a.id]
+                          )
+                        }
+                        className={`text-left p-2 rounded ${
+                          sel
+                            ? "bg-red-100 border border-red-300"
+                            : "hover:bg-gray-100"
+                        }`}
+                      >
+                        <div className="text-sm font-medium">
+                          {a?.area_name?.name ?? a?.name ?? `Área ${a.id}`}
+                        </div>
+                        <div className="text-xs text-gray-500">ID {a.id}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {modalError && (
+                  <div className="text-sm text-red-600">{modalError}</div>
+                )}
+
+                <div className="flex justify-end gap-3 mt-3">
+                  <button
+                    onClick={() => {
+                      setModalOpen(false);
+                      setModalError("");
+                    }}
+                    className="px-4 py-2 rounded-xl bg-gray-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={createReferential}
+                    disabled={modalLoading}
+                    className="px-4 py-2 rounded-xl bg-red-600 text-white"
+                  >
+                    {modalLoading ? "Criando..." : "Criar Referencial"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Criar Observação */}
+        {observationsModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white rounded-xl w-full max-w-2xl p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Criar Observação</h3>
+                <button
+                  onClick={() => {
+                    setObservationsModalOpen(false);
+                    setModalError("");
+                  }}
+                  className="text-gray-500"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <label className="text-sm font-medium">
+                  Descrição da observação
+                </label>
+                <textarea
+                  placeholder="Digite a descrição da observação"
+                  value={newObservationDesc}
+                  onChange={(e) => setNewObservationDesc(e.target.value)}
+                  className="p-3 border rounded-xl min-h-24"
+                />
+
+                {modalError && (
+                  <div className="text-sm text-red-600">{modalError}</div>
+                )}
+
+                <div className="flex justify-end gap-3 mt-3">
+                  <button
+                    onClick={() => {
+                      setObservationsModalOpen(false);
+                      setModalError("");
+                    }}
+                    className="px-4 py-2 rounded-xl bg-gray-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={createObservation}
+                    disabled={modalLoading}
+                    className="px-4 py-2 rounded-xl bg-red-600 text-white"
+                  >
+                    {modalLoading ? "Criando..." : "Criar Observação"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -5,6 +5,7 @@ import ModeloPadrao from "./pages/modeloPadrao";
 import NovaObra from "./pages/NovaObra";
 import SelecionarAreas from "./pages/areas";
 import ElementsMaterialsPage from "./pages/elementsMaterials";
+import Materials from "./pages/materials";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/areas" element={<SelecionarAreas />} />
         <Route path="/criacao" element={<NovaObra />} />
         <Route path="/ElementosMaterials" element={<ElementsMaterialsPage />} />
+        <Route path="/materiais" element={<Materials />} />
       </Routes>
     </BrowserRouter>
   );

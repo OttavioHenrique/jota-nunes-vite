@@ -1,7 +1,7 @@
 // src/pages/SelecionarAreas.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 import api from "../services/axios";
 
 export default function SelecionarAreas() {
@@ -14,6 +14,14 @@ export default function SelecionarAreas() {
 
   // objeto: { "<refId>": [areaId, ...] }
   const [areasByReferential, setAreasByReferential] = useState({});
+
+  // === Modal state para criar nova área ===
+  const [modalOpen, setModalOpen] = useState(false);
+  const [newAreaName, setNewAreaName] = useState("");
+  const [allElements, setAllElements] = useState([]);
+  const [selectedElementsForModal, setSelectedElementsForModal] = useState([]);
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalError, setModalError] = useState("");
 
   function updateNovaObra(data) {
     const current = JSON.parse(localStorage.getItem("novaObra")) || {};
@@ -109,6 +117,7 @@ export default function SelecionarAreas() {
         setAllAreas(areasArr);
         setReferentialsMeta(refsMeta);
         setAreasByReferential(initialMap);
+        localStorage.setItem("allAreasCache", JSON.stringify(areasArr));
       } catch (err) {
         console.error("❌ Erro ao carregar áreas/referenciais:", err);
         setAllAreas([]);
@@ -120,6 +129,21 @@ export default function SelecionarAreas() {
     }
 
     load();
+  }, []);
+
+  // carregar elementos para o modal
+  useEffect(() => {
+    async function loadElements() {
+      try {
+        const elemRes = await api.get("/elements/");
+        const elemPayload = elemRes?.data?.data ?? elemRes?.data ?? [];
+        const elemsArr = Array.isArray(elemPayload) ? elemPayload : [];
+        setAllElements(elemsArr);
+      } catch (err) {
+        console.warn("Erro ao buscar elementos:", err);
+      }
+    }
+    loadElements();
   }, []);
 
   // toggle de seleção de área dentro de um referential
@@ -150,12 +174,101 @@ export default function SelecionarAreas() {
     return text.toLowerCase().includes(search.toLowerCase());
   }
 
+  // toggle elemento para modal
+  function toggleModalElement(elementId) {
+    setSelectedElementsForModal((prev) =>
+      prev.includes(elementId)
+        ? prev.filter((x) => x !== elementId)
+        : [...prev, elementId]
+    );
+  }
+
+  // criar nova área
+  async function createArea() {
+    setModalError("");
+    if (!newAreaName || !newAreaName.trim()) {
+      setModalError("Informe o nome da área.");
+      return;
+    }
+    setModalLoading(true);
+
+    const extractMessage = (err) => {
+      const resp = err?.response;
+      if (!resp) return err?.message || "Erro desconhecido";
+      const data = resp.data;
+      if (!data) return `Erro ${resp.status || ""}`;
+      if (typeof data === "string")
+        return resp.status === 404
+          ? "Endpoint não encontrado (404)."
+          : `Erro ${resp.status}`;
+      if (data?.detail) return data.detail;
+      if (data?.message) return data.message;
+      try {
+        return Object.entries(data)
+          .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`)
+          .join(" • ");
+      } catch {
+        return JSON.stringify(data);
+      }
+    };
+
+    try {
+      // 1) criar AreaName (objeto, não lista)
+      const anRes = await api.post("/areas/names/", {
+        name: newAreaName.trim(),
+      });
+      const anPayload = anRes?.data?.data ?? anRes?.data ?? anRes;
+      let areaNameId =
+        (Array.isArray(anPayload) ? anPayload[0]?.id : anPayload?.id) ?? null;
+      if (!areaNameId && typeof anPayload === "object") {
+        areaNameId = anPayload?.id ?? anPayload?.pk ?? null;
+      }
+      if (!areaNameId)
+        throw new Error(
+          "Não foi possível obter area_name_id a partir da resposta."
+        );
+
+      // 2) criar Area (objeto, não lista)
+      const payload = {
+        area_name_id: areaNameId,
+        elements_ids: Array.isArray(selectedElementsForModal)
+          ? selectedElementsForModal
+          : [],
+      };
+
+      await api.post("/areas/", payload);
+      console.log("Área criada com sucesso");
+
+      // 3) recarregar áreas
+      try {
+        const areasRes = await api.get("/areas/");
+        const areasPayload = areasRes?.data?.data ?? areasRes?.data ?? [];
+        const areasArr = Array.isArray(areasPayload) ? areasPayload : [];
+        setAllAreas(areasArr);
+        localStorage.setItem("allAreasCache", JSON.stringify(areasArr));
+      } catch (err) {
+        console.warn("Erro ao recarregar áreas:", err);
+      }
+
+      // fechar modal e resetar
+      setModalOpen(false);
+      setNewAreaName("");
+      setSelectedElementsForModal([]);
+      setModalError("");
+    } catch (err) {
+      console.error("Erro ao criar área:", err);
+      setModalError(extractMessage(err));
+    } finally {
+      setModalLoading(false);
+    }
+  }
+
   // ui render
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="flex items-center gap-4 bg-red-700 text-white px-4 py-3 shadow-md">
         <button
-          onClick={() => navigate("/nova-obra")}
+          onClick={() => navigate("/criacao")}
           className="p-2 rounded-lg hover:bg-red-600 transition"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -172,13 +285,22 @@ export default function SelecionarAreas() {
             </p>
           </div>
 
-          <input
-            type="text"
-            placeholder="Buscar área..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="p-3 rounded-xl border border-gray-300 focus:border-red-600 focus:outline-none"
-          />
+          <div className="flex gap-3 items-center">
+            <input
+              type="text"
+              placeholder="Buscar área..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 p-3 rounded-xl border border-gray-300 focus:border-red-600 focus:outline-none"
+            />
+            <button
+              onClick={() => setModalOpen(true)}
+              className="flex items-center justify-center gap-2 bg-green-600 text-white px-5 py-3 rounded-2xl shadow-md hover:bg-green-700 transition"
+            >
+              <Plus className="w-5 h-5" />
+              Novo
+            </button>
+          </div>
         </section>
 
         {loading ? (
@@ -272,6 +394,88 @@ export default function SelecionarAreas() {
           </>
         )}
       </main>
+
+      {/* Modal: Criar Área */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl w-full max-w-2xl p-6 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Criar Área</h3>
+              <button
+                onClick={() => {
+                  setModalOpen(false);
+                  setModalError("");
+                }}
+                className="text-gray-500"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <label className="text-sm font-medium">Nome da área</label>
+              <input
+                type="text"
+                placeholder="Digite o nome da nova área"
+                value={newAreaName}
+                onChange={(e) => setNewAreaName(e.target.value)}
+                className="p-3 border rounded-xl"
+              />
+
+              <label className="text-sm font-medium">
+                Associar elementos (opcional)
+              </label>
+              <div className="grid md:grid-cols-2 gap-2 max-h-40 overflow-auto p-2 border rounded">
+                {allElements.map((el) => {
+                  const sel = selectedElementsForModal.includes(el.id);
+                  return (
+                    <button
+                      key={el.id}
+                      type="button"
+                      onClick={() => toggleModalElement(el.id)}
+                      className={`text-left p-2 rounded ${
+                        sel
+                          ? "bg-red-100 border border-red-300"
+                          : "hover:bg-gray-100"
+                      }`}
+                    >
+                      <div className="text-sm font-medium">
+                        {el?.element_type?.name ??
+                          el?.name ??
+                          `Elemento ${el.id}`}
+                      </div>
+                      <div className="text-xs text-gray-500">ID {el.id}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {modalError && (
+                <div className="text-sm text-red-600">{modalError}</div>
+              )}
+
+              <div className="flex justify-end gap-3 mt-3">
+                <button
+                  onClick={() => {
+                    setModalOpen(false);
+                    setModalError("");
+                  }}
+                  className="px-4 py-2 rounded-xl bg-gray-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={createArea}
+                  disabled={modalLoading}
+                  className="px-4 py-2 rounded-xl bg-red-600 text-white"
+                >
+                  {modalLoading ? "Criando..." : "Criar Área"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
