@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { getConstructions } from "../services/constructionService";
 import NovoDocumentoModal from "../components/NovoDocumentoModal";
 import {
@@ -10,6 +11,7 @@ import {
   XCircle,
   MessageSquare,
   X,
+  LogOut,
 } from "lucide-react";
 
 export default function Home() {
@@ -18,6 +20,8 @@ export default function Home() {
   const [menuAberto, setMenuAberto] = useState(false);
   const [projetoSelecionado, setProjetoSelecionado] = useState(null);
   const [textoObs, setTextoObs] = useState("");
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -65,15 +69,24 @@ export default function Home() {
   const aprovados = projetos.filter((p) => p.status === "aprovado");
   const reprovados = projetos.filter((p) => p.status === "reprovado");
 
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+
+    setTimeout(() => {
+      navigate("/");
+    }, 1200);
+  };
+
   return (
     <div className="flex flex-col md:flex-row h-screen bg-gray-100 relative">
       {/* Sidebar */}
       <aside className="hidden md:flex w-20 bg-red-700 text-white flex-col items-center py-6 space-y-8">
-        <button className="hover:bg-red-600 p-3 rounded-xl transition">
-          <User />
-        </button>
-        <button className="hover:bg-red-600 p-3 rounded-xl transition">
-          <Settings />
+        <button
+          onClick={handleLogout}
+          className="hover:bg-red-600 p-3 rounded-xl transition"
+        >
+          <LogOut />
         </button>
       </aside>
 
