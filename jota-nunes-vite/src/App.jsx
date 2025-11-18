@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import ProtectedRoute from "./components/ProtectedRoute"; 
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import LoginPage from "../src/pages/login";
 import Home from "./pages/home";
@@ -13,13 +13,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        
         {/* ROTA PÚBLICA */}
-
         <Route path="/" element={<LoginPage />} />
 
         {/* ROTAS PROTEGIDAS */}
-          
         <Route
           path="/home"
           element={
@@ -28,6 +25,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/modeloPadrao"
           element={
@@ -36,6 +34,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/areas"
           element={
@@ -44,6 +43,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/criacao"
           element={
@@ -52,14 +52,16 @@ export default function App() {
             </ProtectedRoute>
           }
         />
+
         <Route
-          path="/ElementosMaterials"
+          path="/elementos"
           element={
             <ProtectedRoute>
               <ElementsMaterialsPage />
             </ProtectedRoute>
           }
         />
+
         <Route
           path="/materiais"
           element={
