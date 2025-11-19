@@ -1,95 +1,28 @@
-📦 Instalação
-
-Clone o repositório:
-
-git clone https://github.com/guilobodev/jota-nunes-vite.git
-cd jota-nunes-vite
-
-
-Instale as dependências:
-
-npm install
-# ou
-yarn
-# ou
-pnpm install
-# ou
-bun install
-
-💻 Ambiente de Desenvolvimento
-
-Inicie o servidor de desenvolvimento:
-
-npm run dev
-
-
-Acesse em:
-👉 http://localhost:5173
-
-⚙️ Build de Produção
-
-Gerar a build otimizada:
-
-npm run build
-
-
-Pré-visualizar a build:
-
-npm run preview
-
-📂 Estrutura do Projeto
-├── src/
-│   ├── assets/           # Imagens e arquivos públicos
-│   ├── components/       # Componentes reutilizáveis
-│   ├── pages/            # Páginas principais
-│   ├── App.tsx           # Componente raiz
-│   └── main.tsx          # Entrada do projeto
-├── public/               # Arquivos estáticos
-├── index.html
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
-
-🚀 Funcionalidades Futuras
-
-🏘️ Cadastro e listagem de imóveis
-
-🔍 Filtros avançados com busca dinâmica
-
-👤 Autenticação de usuários
-
-🗺️ Integração com Google Maps
-
-📱 Suporte completo a PWA
-
-📚 Documentação Útil
-
-🔗 Documentação do Vite
-
-🔗 React Docs
-
-🔗 TypeScript Docs
-
-🔗 Tailwind CSS
-
-🤝 Contribuindo
-
-Faça um fork
-
-Crie uma branch: git checkout -b minha-feature
-
-Commit: git commit -m 'Adiciona minha feature'
-
-Push: git push origin minha-feature
-
-Abra um Pull Request 🚀
-
-📄 Licença
-
-Este projeto está licenciado sob a MIT License.
-
+# 🏠 Jota Nunes – Plataforma de Gestão de Imóveis
 <div align="center">
 
-Feito com ❤️ por Gabriel
+![Vite](https://img.shields.io/badge/Vite-5.0-purple?logo=vite&style=for-the-badge)
+![React](https://img.shields.io/badge/React-18-blue?logo=react&style=for-the-badge)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript&style=for-the-badge)
 
+<br/>
+
+Aplicação moderna para gestão de imóveis, construída com Vite, React e TypeScript, oferecendo velocidade, escalabilidade e uma experiência fluida no desenvolvimento e uso.
+
+</div>
+
+Este projeto utiliza Vite como ferramenta de build rápida, React 18 para construção da interface e TypeScript para maior segurança no código. Para instalar, basta clonar o repositório com: 
+
+git clone https://github.com/guilobodev/jota-nunes-vite.git  
+cd jota-nunes-vite  
+npm install  
+
+Para iniciar o ambiente de desenvolvimento, execute: npm run dev e acesse http://localhost:5173. Para gerar a build de produção, utilize: npm run build e para pré-visualizar a build gerada, execute: npm run preview.
+
+A estrutura do projeto contém a pasta src com assets, components, pages, App.tsx e main.tsx, além da pasta public, index.html, vite.config.ts, tsconfig.json e package.json. Entre as futuras funcionalidades estão cadastro e listagem de imóveis, filtros avançados com busca dinâmica, autenticação de usuários, integração com mapas como Google Maps e suporte completo a PWA.
+
+Documentações recomendadas incluem Vite, React, TypeScript e Tailwind CSS. Para contribuir, basta fazer um fork, criar uma branch, realizar commits, enviar para o repositório e abrir um Pull Request. O projeto é licenciado sob MIT License.
+
+<div align="center">
+Feito com ❤️ por Gabriel
 </div>
