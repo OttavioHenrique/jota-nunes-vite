@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import api from "../services/axios";
 import { useNavigate } from "react-router-dom";
 import { getConstructions } from "../services/constructionService";
+
 import NovoDocumentoModal from "../components/NovoDocumentoModal";
 import {
   FilePlus,
@@ -329,12 +331,59 @@ function SecaoProjetos({ titulo, cor, lista }) {
   };
 
   const [menuAberto, setMenuAberto] = useState(null);
+  const [showModeloModal, setShowModeloModal] = useState(false);
+  const [nomeModelo, setNomeModelo] = useState("");
+  const [projetoParaModelo, setProjetoParaModelo] = useState(null);
+  const [carregandoModelo, setCarregandoModelo] = useState(false);
+  const [mensagemConfirmacao, setMensagemConfirmacao] = useState("");
+  const navigate = useNavigate();
 
   const toggleMenu = (id) => {
     setMenuAberto((prev) => (prev === id ? null : id));
   };
 
   const fecharMenus = () => setMenuAberto(null);
+
+  const tornarModeloPadrao = (projeto) => {
+    fecharMenus();
+    setProjetoParaModelo(projeto);
+    setNomeModelo(projeto.project_name);
+    setShowModeloModal(true);
+  };
+  const confirmarCriacaoModelo = async () => {
+    if (!nomeModelo.trim()) {
+      setMensagemConfirmacao("Digite um nome válido.");
+      return;
+    }
+
+    setCarregandoModelo(true);
+
+    try {
+      const res = await api.post(`/standard-models/${projetoParaModelo.id}/`, {
+        name: nomeModelo.trim(),
+      });
+
+      console.log("Modelo padrão criado:", res.data);
+
+      setMensagemConfirmacao("Modelo padrão criado com sucesso!");
+
+      navigate("/modeloPadrao", {
+        state: {
+          obraOriginal: projetoParaModelo,
+        },
+      });
+
+      setTimeout(() => {
+        setShowModeloModal(false);
+        setMensagemConfirmacao("");
+      }, 1000);
+    } catch (error) {
+      console.error("Erro ao criar modelo padrão:", error);
+      setMensagemConfirmacao("Erro ao criar modelo.");
+    } finally {
+      setCarregandoModelo(false);
+    }
+  };
 
   useEffect(() => {
     const handleClickFora = (e) => {
@@ -386,13 +435,9 @@ function SecaoProjetos({ titulo, cor, lista }) {
                 >
                   Baixar .docx
                 </button>
-
                 <button
                   className="w-full text-left px-4 py-3 hover:bg-gray-100 transition text-gray-700"
-                  onClick={() => {
-                    fecharMenus();
-                    alert(`Convertendo projeto ${projeto.id} em modelo padrão`);
-                  }}
+                  onClick={() => tornarModeloPadrao(projeto)}
                 >
                   Tornar modelo padrão
                 </button>
@@ -415,6 +460,51 @@ function SecaoProjetos({ titulo, cor, lista }) {
           </div>
         ))}
       </div>
+      {showModeloModal && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white w-11/12 max-w-md rounded-2xl p-6 shadow-xl relative animate-fadeIn">
+            {/* Botão Fechar */}
+            <button
+              onClick={() => {
+                setShowModeloModal(false);
+                setMensagemConfirmacao("");
+              }}
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+              Criar Modelo Padrão
+            </h2>
+
+            <p className="text-gray-600 mb-3">
+              Digite o nome do modelo padrão:
+            </p>
+
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-600"
+              value={nomeModelo}
+              onChange={(e) => setNomeModelo(e.target.value)}
+            />
+
+            {mensagemConfirmacao && (
+              <p className="text-center text-green-600 mt-2">
+                {mensagemConfirmacao}
+              </p>
+            )}
+
+            <button
+              onClick={confirmarCriacaoModelo}
+              disabled={carregandoModelo}
+              className="w-full mt-5 bg-red-700 hover:bg-red-600 text-white py-2 rounded-xl transition disabled:opacity-60"
+            >
+              {carregandoModelo ? "Criando..." : "Criar Modelo"}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
