@@ -46,6 +46,12 @@ export default function SelecionarElementos() {
 
   //
   //
+
+  function hasAnyElementSelected() {
+    return Object.values(elementsByArea).some(
+      (arr) => Array.isArray(arr) && arr.length > 0
+    );
+  }
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -95,7 +101,6 @@ export default function SelecionarElementos() {
         refsMeta.sort((a, b) => a.id - b.id);
         setReferentialsMeta(refsMeta);
 
-        // Carregar TODOS os elementos
         const elemRes = await api.get("/elements/");
 
         const elemPayload = elemRes?.data?.data ?? elemRes?.data ?? [];
@@ -152,6 +157,11 @@ export default function SelecionarElementos() {
   }
 
   function handleNext() {
+    if (!hasAnyElementSelected()) {
+      alert("Selecione ao menos um elemento para continuar.");
+      return;
+    }
+
     updateNovaObra({ elements_by_area: elementsByArea });
     navigate("/materiais");
   }
