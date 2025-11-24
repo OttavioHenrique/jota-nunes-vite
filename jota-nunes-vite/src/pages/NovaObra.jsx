@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus } from "lucide-react";
+import { useLocation } from "react-router-dom";
+
 import api from "../services/axios";
 
 export default function NovaObra() {
@@ -19,8 +21,7 @@ export default function NovaObra() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [observationsModalOpen, setObservationsModalOpen] = useState(false);
-  const [availableAreas, setAvailableAreas] = useState([]);
-  const [availableMaterials, setAvailableMaterials] = useState([]);
+
   const [newRefName, setNewRefName] = useState("");
   const [newObservationDesc, setNewObservationDesc] = useState("");
   const [selectedAreasForModal, setSelectedAreasForModal] = useState([]);
@@ -35,23 +36,9 @@ export default function NovaObra() {
   }
 
   useEffect(() => {
-    async function fetchElements() {
-      try {
-        const response = await api.get("/elements/");
-        const elementsList = response.data.data;
-        console.log(elementsList);
-        setElements(elementsList);
-      } catch (error) {
-        console.log("Erro ao buscar os elementos: ", error);
-      }
-    }
-    fetchElements();
-  }, []);
-
-  useEffect(() => {
     async function fetchReferentials() {
       try {
-        const res = await api.get("/referentials/");
+        const res = await api.get("/referentials/name/");
         console.log("✅ RES.DATA:", res.data);
         const list = res?.data?.data ?? [];
         console.log("✅ LIST:", list);
@@ -80,45 +67,11 @@ export default function NovaObra() {
     fetchObservations();
   }, []);
 
-  useEffect(() => {
-    async function loadAux() {
-      try {
-        try {
-          const areasRes = await api.get("/areas/");
-          const areasPayload = areasRes?.data?.data ?? areasRes?.data ?? [];
-          const areasArr = Array.isArray(areasPayload) ? areasPayload : [];
-          setAvailableAreas(areasArr);
-        } catch (e) {
-          console.warn("Erro ao buscar áreas para modal:", e);
-        }
-        try {
-          const materialsRes = await api.get("/materials/");
-          const materialsPayload =
-            materialsRes?.data?.data ?? materialsRes?.data ?? [];
-          const materialsArr = Array.isArray(materialsPayload)
-            ? materialsPayload
-            : [];
-          setAvailableMaterials(materialsArr);
-        } catch (e) {
-          console.warn("Erro ao buscar materiais para modal:", e);
-        }
-      } catch (err) {
-        console.error("Erro loadAux:", err);
-      }
-    }
-
-    loadAux();
-  }, []);
-
-  const filteredReferentials = referentials.filter(
-    (r) =>
-      r &&
-      r.referential_name &&
-      r.referential_name.name &&
-      r.referential_name.name
-        .toLowerCase()
-        .includes(searchReferentials.toLowerCase())
+  const filteredReferentials = referentials.filter((r) =>
+    r?.name?.toLowerCase().includes(searchReferentials.toLowerCase())
   );
+  const routerLocation = useLocation();
+  const modeloPadrao = routerLocation.state?.modeloPadrao || null;
 
   function toggleSelect(id) {
     setSelectedReferentials((prev) =>
@@ -157,6 +110,26 @@ export default function NovaObra() {
     navigate("/areas");
   }
 
+  useEffect(() => {
+    if (modeloPadrao) {
+      setProjectName(modeloPadrao.name || "");
+      setDescription(modeloPadrao.description || "");
+      setLocation(modeloPadrao.location || "");
+
+      setSelectedReferentials(modeloPadrao.referentials || []);
+      setSelectedObservations(modeloPadrao.observations || []);
+
+      updateNovaObra({
+        projectName: modeloPadrao.name,
+        description: modeloPadrao.description,
+        location: modeloPadrao.location,
+        referentials: modeloPadrao.referentials,
+        observations: modeloPadrao.observations,
+      });
+
+      console.log("🔄 Modelo padrão carregado:", modeloPadrao);
+    }
+  }, [modeloPadrao]);
   async function createReferential() {
     setModalError("");
 
@@ -189,7 +162,7 @@ export default function NovaObra() {
     };
 
     try {
-      const rnRes = await api.post("/referentials/name/", [
+      const rnRes = await api.post("/referentials/", [
         { name: newRefName.trim() },
       ]);
       const rnPayload = rnRes?.data?.data ?? rnRes?.data ?? rnRes;
@@ -214,11 +187,11 @@ export default function NovaObra() {
         },
       ];
 
-      const res = await api.post("/referentials/", payload);
+      const res = await api.post("/referentials/name/", payload);
       console.log("Referential criado:", res.data);
 
       try {
-        const listRes = await api.get("/referentials/");
+        const listRes = await api.get("/referentials/name/");
         const list = listRes?.data?.data ?? listRes?.data ?? [];
         setReferentials(list);
       } catch (err) {
@@ -374,7 +347,7 @@ export default function NovaObra() {
                   }`}
                 >
                   <h3 className="text-lg font-semibold text-gray-900">
-                    {ref?.referential_name?.name ?? "Sem nome"}
+                    {ref.name}
                   </h3>
                 </div>
               ))}
