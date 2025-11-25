@@ -464,26 +464,6 @@ export default function SelecionarElementos() {
             </div>
 
             <div className="flex flex-col gap-3">
-              <label className="text-sm font-medium">Tipo de elemento</label>
-              <select
-                value={selectedTypeId ?? ""}
-                onChange={(e) =>
-                  setSelectedTypeId(
-                    e.target.value ? Number(e.target.value) : null
-                  )
-                }
-                className="p-3 border rounded-xl"
-              >
-                <option value="">-- selecione --</option>
-                {elementTypes.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-
-              <div className="text-center text-sm text-gray-500">ou</div>
-
               <label className="text-sm font-medium">Criar novo tipo</label>
               <input
                 type="text"
