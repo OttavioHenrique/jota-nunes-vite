@@ -384,6 +384,31 @@ function SecaoProjetos({ titulo, cor, lista }) {
       setCarregandoModelo(false);
     }
   };
+  const baixarDocumento = async (id, nomeProjeto) => {
+  try {
+    const response = await api.get(`/documents/${id}/`, {
+      responseType: "blob",
+    });
+
+    const blob = new Blob([response.data], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+
+    const url = window.URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${nomeProjeto.replace(/ /g, "_")}.docx`;
+    document.body.appendChild(a);
+    a.click();
+
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Erro ao baixar documento:", error);
+    alert("Erro ao baixar documento.");
+  }
+};
 
   useEffect(() => {
     const handleClickFora = (e) => {
@@ -429,8 +454,8 @@ function SecaoProjetos({ titulo, cor, lista }) {
                 <button
                   className="w-full text-left px-4 py-3 hover:bg-gray-100 transition text-gray-700"
                   onClick={() => {
-                    fecharMenus();
-                    alert(`Baixando DOCX do projeto ${projeto.id}`);
+                  fecharMenus();
+                  baixarDocumento(projeto.id, projeto.project_name);
                   }}
                 >
                   Baixar .docx
